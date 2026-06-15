@@ -1,9 +1,15 @@
 # Claude Code local settings
 .claude/
 
-# OS / editor junk
+# OS artifacts
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Editor swap files
 *.swp
 *.swo
+*~
+
+# Node (if you ever add a build step)
+node_modules/
