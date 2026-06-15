@@ -17,11 +17,9 @@ Google Gemini on desktop only has a **click-to-record** mic — you press, speak
 
 ## Screenshots
 
-| Idle | Listening | Speaking |
-|------|-----------|----------|
+| Idle — extension ready | Listening — mic active | Speaking — transcribing in real time |
+|------------------------|------------------------|--------------------------------------|
 | ![Idle state](screenshots/idle.png) | ![Listening state](screenshots/listening.png) | ![Speaking state](screenshots/speaking.png) |
-
-> **To add your own screenshots:** open `https://gemini.google.com/app`, activate the extension, and save screenshots named `idle.png`, `listening.png`, and `speaking.png` into the `screenshots/` folder.
 
 ---
 
@@ -56,8 +54,6 @@ git clone https://github.com/YOUR_USERNAME/gemini-live-voice.git
 
 Navigate to `chrome://extensions` in your browser address bar.
 
-![Chrome Extensions page](screenshots/install-extensions-page.png)
-
 ### Step 3 — Enable Developer Mode
 
 Toggle **Developer mode** in the top-right corner of the extensions page.
@@ -66,16 +62,12 @@ Toggle **Developer mode** in the top-right corner of the extensions page.
 
 Click **Load unpacked** and select the folder you downloaded/unzipped (the one that contains `manifest.json`).
 
-![Load unpacked](screenshots/install-load-unpacked.png)
-
 The **Gemini Live Speech** extension will appear in your list with a green toggle.
 
 ### Step 5 — Open Gemini
 
 Go to [https://gemini.google.com/app](https://gemini.google.com/app).  
-You will see a new **LIVE** button to the left of the microphone button in the chat toolbar.
-
-![LIVE button in toolbar](screenshots/install-done.png)
+You will see a new **● LIVE** button to the left of the microphone button in the chat toolbar.
 
 ---
 
