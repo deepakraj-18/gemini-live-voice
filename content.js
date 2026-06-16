@@ -148,6 +148,8 @@
 
     r.onresult = (evt) => {
       if (isSubmitting) return;
+      // Stop TTS the moment the user starts speaking
+      stopSpeech();
       let interim = '';
       for (let i = evt.resultIndex; i < evt.results.length; i++) {
         const t = evt.results[i][0].transcript;
