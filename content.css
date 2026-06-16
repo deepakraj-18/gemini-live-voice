@@ -195,6 +195,32 @@ body:not(.dark-theme) #glive-indicator[data-state="sending"] {
 
 .glive-indicator-text { flex: 1; user-select: none; }
 
+/* ── Voice selector inside the indicator pill ── */
+.glive-voice-select {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: currentColor;
+  font-family: 'Google Sans', Arial, sans-serif;
+  font-size: 11px;
+  padding: 3px 6px;
+  cursor: pointer;
+  max-width: 150px;
+  flex-shrink: 0;
+  outline: none;
+}
+.glive-voice-select:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+body:not(.dark-theme) .glive-voice-select {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #202124;
+}
+body:not(.dark-theme) .glive-voice-select:focus {
+  border-color: rgba(0, 0, 0, 0.3);
+}
+
 .glive-close {
   background: none;
   border: none;

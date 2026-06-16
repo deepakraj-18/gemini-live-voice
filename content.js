@@ -19,6 +19,40 @@
   let lastReadText    = '';
   const readObservers = new WeakMap();
 
+  // ── Voice state ──────────────────────────────────────────────────────────
+  let voices            = [];
+  let selectedVoiceName = localStorage.getItem('glive-voice') || '';
+
+  function loadVoices() {
+    voices = window.speechSynthesis.getVoices();
+    populateVoiceSelect();
+  }
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+  loadVoices();
+
+  function getSelectedVoice() {
+    if (!selectedVoiceName) return null;
+    return voices.find(v => v.name === selectedVoiceName) || null;
+  }
+
+  function populateVoiceSelect() {
+    const sel = document.getElementById('glive-voice-select');
+    if (!sel || !voices.length) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    const def = document.createElement('option');
+    def.value = '';
+    def.textContent = 'Default voice';
+    sel.appendChild(def);
+    voices.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.name;
+      opt.textContent = v.name + (v.lang ? ' (' + v.lang + ')' : '');
+      sel.appendChild(opt);
+    });
+    sel.value = prev || selectedVoiceName;
+  }
+
   // ── DOM helpers ──────────────────────────────────────────────────────────
   const getEditor  = () => document.querySelector('.ql-editor[contenteditable="true"]');
   const getSendBtn = () => document.querySelector('[aria-label="Send message"]');
@@ -66,17 +100,12 @@
         }
       }
       interimText = interim;
-
       setEditorText(finalText + (interim ? (finalText ? ' ' : '') + interim : ''));
-
       setUiState('speaking');
       clearTimeout(visualTimer);
       visualTimer = setTimeout(() => { if (isLive) setUiState('listening'); }, 800);
-
       clearTimeout(silenceTimer);
-      if (finalText.trim()) {
-        silenceTimer = setTimeout(autoSubmit, SILENCE_DELAY);
-      }
+      if (finalText.trim()) silenceTimer = setTimeout(autoSubmit, SILENCE_DELAY);
     };
 
     r.onerror = (evt) => {
@@ -85,7 +114,6 @@
         showToast('Microphone access denied. Allow mic for gemini.google.com.', 'error');
         stopLive();
       }
-      // no-speech / network / aborted → restart via onend
     };
 
     r.onend = () => {
@@ -133,10 +161,8 @@
     if (!finalText.trim() || isSubmitting) return;
     isSubmitting = true;
     interimText  = '';
-
     setEditorText(finalText.trim());
     setUiState('sending');
-
     setTimeout(() => {
       const btn = getSendBtn();
       if (btn && !btn.disabled) btn.click();
@@ -146,11 +172,23 @@
     }, 300);
   }
 
-  // ── TTS (Speech Output) ──────────────────────────────────────────────────
+  // ── TTS ──────────────────────────────────────────────────────────────────
   function extractSpeakableText(el) {
     const clone = el.cloneNode(true);
+    // Remove code blocks
     clone.querySelectorAll('pre, code, [class*="code-block"]').forEach(n => n.remove());
-    return (clone.innerText || '').replace(/\s+/g, ' ').trim();
+    // Remove visually-hidden screen-reader-only elements ("Gemini said", copy buttons, etc.)
+    clone.querySelectorAll([
+      '[class*="visually-hidden"]',
+      '[class*="sr-only"]',
+      '[class*="screen-reader"]',
+      '[aria-hidden="true"]',
+      'button',
+    ].join(',')).forEach(n => n.remove());
+    let text = (clone.innerText || '').replace(/\s+/g, ' ').trim();
+    // Belt-and-suspenders: strip any remaining "Gemini said" prefix
+    text = text.replace(/^(gemini\s+said|model\s+said)[:\s]*/i, '').trim();
+    return text;
   }
 
   function speak(text) {
@@ -158,6 +196,8 @@
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = document.documentElement.lang || navigator.language || 'en-US';
+    const voice = getSelectedVoice();
+    if (voice) u.voice = voice;
     window.speechSynthesis.speak(u);
   }
 
@@ -165,7 +205,6 @@
     window.speechSynthesis.cancel();
   }
 
-  // Watch a model-response element and read it once streaming settles
   function watchResponseEl(el) {
     if (readObservers.has(el)) return;
     let settle;
@@ -189,9 +228,7 @@
   function setUiState(state) {
     const btn = document.getElementById(BUTTON_ID);
     const bar = document.getElementById(INDICATOR_ID);
-
     if (btn) btn.dataset.state = state;
-
     if (bar) {
       bar.dataset.state = state;
       const txt = bar.querySelector('.glive-indicator-text');
@@ -212,7 +249,7 @@
     interimText  = '';
     isSubmitting = false;
     lastReadText = '';
-    stopSpeech(); // clear any leftover TTS before mic starts
+    stopSpeech();
     showIndicator();
     startRecognition();
   }
@@ -233,7 +270,6 @@
   // ── Button injection ─────────────────────────────────────────────────────
   function injectLiveButton() {
     if (document.getElementById(BUTTON_ID)) return;
-
     const micContainer = document.querySelector('.mic-button-container');
     const micComp      = getMicComp();
     const anchor       = micContainer || micComp;
@@ -256,7 +292,6 @@
   function positionIndicator() {
     const bar = document.getElementById(INDICATOR_ID);
     if (!bar) return;
-    // input-container is always at viewport bottom regardless of scroll/layout state
     const anchor = document.querySelector('input-container') || document.querySelector('.input-area-container');
     if (anchor) {
       const rect = anchor.getBoundingClientRect();
@@ -285,6 +320,21 @@
     txt.setAttribute('aria-live', 'polite');
     txt.textContent = 'Listening…';
 
+    // Voice selector — inline in the pill
+    const voiceSel = document.createElement('select');
+    voiceSel.id = 'glive-voice-select';
+    voiceSel.className = 'glive-voice-select';
+    voiceSel.title = 'Select TTS voice';
+    voiceSel.setAttribute('aria-label', 'TTS voice');
+    populateVoiceSelect();                    // fill options (voices may already be loaded)
+    voiceSel.value = selectedVoiceName;
+    voiceSel.addEventListener('change', (e) => {
+      selectedVoiceName = e.target.value;
+      localStorage.setItem('glive-voice', selectedVoiceName);
+    });
+    // Prevent the click from bubbling up and toggling live mode
+    voiceSel.addEventListener('click', (e) => e.stopPropagation());
+
     const cls = document.createElement('button');
     cls.className = 'glive-close';
     cls.setAttribute('aria-label', 'Stop live speech');
@@ -294,6 +344,7 @@
 
     bar.appendChild(wave);
     bar.appendChild(txt);
+    bar.appendChild(voiceSel);
     bar.appendChild(cls);
     document.body.appendChild(bar);
 
@@ -325,15 +376,11 @@
 
   // ── MutationObserver ─────────────────────────────────────────────────────
   new MutationObserver((mutations) => {
-    // Re-inject button if Angular re-renders removed it
     if (!document.getElementById(BUTTON_ID)) injectLiveButton();
 
-    // Reposition indicator when layout changes (e.g. first message sent,
-    // input-container moves from center to bottom of viewport)
     clearTimeout(posDebounce);
     posDebounce = setTimeout(positionIndicator, 150);
 
-    // Watch new AI response elements for TTS
     for (const m of mutations) {
       for (const node of m.addedNodes) {
         if (node.nodeType !== 1) continue;
