@@ -3,7 +3,7 @@
 
   const BUTTON_ID    = 'glive-btn';
   const INDICATOR_ID = 'glive-indicator';
-  const SILENCE_DELAY = 1500;
+  const SILENCE_DELAY = 3000;
 
   // ── State ────────────────────────────────────────────────────────────────
   let recognition   = null;
@@ -16,8 +16,9 @@
   let visualTimer   = null;
   let posDebounce   = null;
 
-  let lastReadText    = '';
-  const readObservers = new WeakMap();
+  let lastReadText      = '';
+  let isEditorFocused   = false;
+  const readObservers   = new WeakMap();
 
   // ── Voice state ──────────────────────────────────────────────────────────
   let voices            = [];
@@ -109,7 +110,7 @@
       clearTimeout(visualTimer);
       visualTimer = setTimeout(() => { if (isLive) setUiState('listening'); }, 800);
       clearTimeout(silenceTimer);
-      if (finalText.trim()) silenceTimer = setTimeout(autoSubmit, SILENCE_DELAY);
+      if (finalText.trim() && !isEditorFocused) silenceTimer = setTimeout(autoSubmit, SILENCE_DELAY);
     };
 
     r.onerror = (evt) => {
@@ -162,7 +163,7 @@
 
   // ── Auto-submit ──────────────────────────────────────────────────────────
   function autoSubmit() {
-    if (!finalText.trim() || isSubmitting) return;
+    if (!finalText.trim() || isSubmitting || isEditorFocused) return;
     isSubmitting = true;
     interimText  = '';
     setEditorText(finalText.trim());
@@ -263,7 +264,8 @@
   }
 
   function stopLive() {
-    isLive = false;
+    isLive          = false;
+    isEditorFocused = false;
     clearTimeout(silenceTimer);
     clearTimeout(visualTimer);
     stopRecognition();
@@ -375,6 +377,19 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 5000);
   }
+
+  // ── Editor focus detection ───────────────────────────────────────────────
+  // Use mousedown (not focus) so we only catch user clicks, not our own editor.focus() calls.
+  document.addEventListener('mousedown', (e) => {
+    if (!isLive) return;
+    const editor = getEditor();
+    if (editor && (editor === e.target || editor.contains(e.target))) {
+      isEditorFocused = true;
+      clearTimeout(silenceTimer); // cancel any pending auto-submit
+    } else {
+      isEditorFocused = false;
+    }
+  }, true);
 
   // ── Keyboard shortcut ────────────────────────────────────────────────────
   document.addEventListener('keydown', (e) => {
