@@ -1,12 +1,11 @@
-/* ── Hide Gemini's native mic button — our LIVE/SPEAK buttons replace it ─ */
+/* ── Hide Gemini's native mic button — LIVE button replaces it ───────────── */
 .mic-button-container,
 speech-dictation-mic-button {
   display: none !important;
 }
 
-/* ── Shared pill base — LIVE and SPEAK share this shape ─────────────────── */
-#glive-btn,
-#glive-speak-btn {
+/* ── LIVE button — matches Gemini's Flash-Lite pill style ───────────────── */
+#glive-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -25,21 +24,18 @@ speech-dictation-mic-button {
   white-space: nowrap;
 }
 
-#glive-btn:hover,
-#glive-speak-btn:hover {
+#glive-btn:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #c4c7c5;
 }
 
-#glive-btn:focus-visible,
-#glive-speak-btn:focus-visible {
+#glive-btn:focus-visible {
   outline: 2px solid #8ab4f8;
   outline-offset: 2px;
 }
 
 /* Status dot via ::before — immune to Gemini's child-element CSS rules */
-#glive-btn::before,
-#glive-speak-btn::before {
+#glive-btn::before {
   content: '';
   display: block;
   width: 8px;
@@ -52,7 +48,7 @@ speech-dictation-mic-button {
   transition: opacity 0.2s, transform 0.2s;
 }
 
-/* ── LIVE button states (red = active) ──────────────────────────────────── */
+/* ── Listening state ── */
 #glive-btn[data-state="listening"] {
   background: rgba(234, 67, 53, 0.12);
   color: #ea4335;
@@ -63,6 +59,7 @@ speech-dictation-mic-button {
   animation: glive-pulse-slow 1.6s ease-in-out infinite;
 }
 
+/* ── Speaking state ── */
 #glive-btn[data-state="speaking"] {
   background: rgba(234, 67, 53, 0.18);
   color: #ea4335;
@@ -73,6 +70,7 @@ speech-dictation-mic-button {
   animation: glive-pulse-fast 0.45s ease-in-out infinite;
 }
 
+/* ── Sending state ── */
 #glive-btn[data-state="sending"] {
   background: rgba(52, 168, 83, 0.12);
   color: #34a853;
@@ -82,27 +80,9 @@ speech-dictation-mic-button {
   opacity: 1;
 }
 
-/* ── SPEAK button states (blue = on) ────────────────────────────────────── */
-#glive-speak-btn[data-state="on"] {
-  background: rgba(138, 180, 248, 0.12);
-  color: #8ab4f8;
-  border-color: rgba(138, 180, 248, 0.25);
-}
-#glive-speak-btn[data-state="on"]::before {
-  opacity: 1;
-  animation: glive-pulse-slow 2s ease-in-out infinite;
-}
-
-/* ── Light theme overrides ──────────────────────────────────────────────── */
-body:not(.dark-theme) #glive-btn,
-body:not(.dark-theme) #glive-speak-btn { color: #5f6368; }
-
-body:not(.dark-theme) #glive-btn:hover,
-body:not(.dark-theme) #glive-speak-btn:hover {
-  background: rgba(95,99,104,.08);
-  color: #202124;
-}
-
+/* ── Light theme overrides ── */
+body:not(.dark-theme) #glive-btn { color: #5f6368; }
+body:not(.dark-theme) #glive-btn:hover { background: rgba(95,99,104,.08); color: #202124; }
 body:not(.dark-theme) #glive-btn[data-state="listening"],
 body:not(.dark-theme) #glive-btn[data-state="speaking"] {
   background: #fce8e6; color: #c5221f; border-color: rgba(197,34,31,.25);
@@ -110,11 +90,7 @@ body:not(.dark-theme) #glive-btn[data-state="speaking"] {
 body:not(.dark-theme) #glive-btn[data-state="sending"] {
   background: #e6f4ea; color: #137333; border-color: rgba(19,115,51,.25);
 }
-body:not(.dark-theme) #glive-speak-btn[data-state="on"] {
-  background: #e8f0fe; color: #1a73e8; border-color: rgba(26,115,232,.25);
-}
 
-/* ── Animations ─────────────────────────────────────────────────────────── */
 @keyframes glive-pulse-slow {
   0%, 100% { transform: scale(1);   opacity: 1; }
   50%       { transform: scale(1.5); opacity: 0.35; }
@@ -126,7 +102,7 @@ body:not(.dark-theme) #glive-speak-btn[data-state="on"] {
 
 .glive-label { font-size: 14px; font-weight: 500; line-height: 1; }
 
-/* ── Indicator pill ─────────────────────────────────────────────────────── */
+/* ── Indicator pill — fixed, repositioned by JS ─────────────────────────── */
 #glive-indicator {
   position: fixed;
   bottom: 120px; /* safe fallback — JS overrides with real value */
@@ -179,7 +155,7 @@ body:not(.dark-theme) #glive-indicator[data-state="sending"] {
   background: #e6f4ea; color: #137333; border-color: rgba(19,115,51,.2);
 }
 
-/* ── Waveform bars ──────────────────────────────────────────────────────── */
+/* ── Waveform bars ── */
 .glive-wave {
   display: flex;
   align-items: center;
@@ -236,7 +212,7 @@ body:not(.dark-theme) #glive-indicator[data-state="sending"] {
 .glive-close:hover { opacity: 1; background: rgba(255,255,255,.1); }
 body:not(.dark-theme) .glive-close:hover { background: rgba(0,0,0,.08); }
 
-/* ── Toast ──────────────────────────────────────────────────────────────── */
+/* ── Toast ── */
 .glive-toast {
   position: fixed;
   bottom: 24px;

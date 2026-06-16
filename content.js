@@ -2,7 +2,6 @@
   'use strict';
 
   const BUTTON_ID    = 'glive-btn';
-  const SPEAK_ID     = 'glive-speak-btn';
   const INDICATOR_ID = 'glive-indicator';
   const SILENCE_DELAY = 1500;
 
@@ -17,9 +16,7 @@
   let visualTimer   = null;
   let posDebounce   = null;
 
-  // TTS state — persisted across page loads
-  let ttsEnabled   = localStorage.getItem('glive-tts') === 'true';
-  let lastReadText = '';
+  let lastReadText    = '';
   const readObservers = new WeakMap();
 
   // ── DOM helpers ──────────────────────────────────────────────────────────
@@ -152,13 +149,12 @@
   // ── TTS (Speech Output) ──────────────────────────────────────────────────
   function extractSpeakableText(el) {
     const clone = el.cloneNode(true);
-    // Remove code blocks — don't read raw code aloud
     clone.querySelectorAll('pre, code, [class*="code-block"]').forEach(n => n.remove());
     return (clone.innerText || '').replace(/\s+/g, ' ').trim();
   }
 
   function speak(text) {
-    if (!ttsEnabled || !text) return;
+    if (!isLive || !text) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = document.documentElement.lang || navigator.language || 'en-US';
@@ -169,7 +165,7 @@
     window.speechSynthesis.cancel();
   }
 
-  // Watch a single model-response element and read it once streaming settles
+  // Watch a model-response element and read it once streaming settles
   function watchResponseEl(el) {
     if (readObservers.has(el)) return;
     let settle;
@@ -177,48 +173,16 @@
       clearTimeout(settle);
       settle = setTimeout(() => {
         obs.disconnect();
-        if (!ttsEnabled) return;
+        if (!isLive) return;
         const text = extractSpeakableText(el);
         if (text && text !== lastReadText) {
           lastReadText = text;
           speak(text);
         }
-      }, 1000); // wait 1 s of silence after streaming stops
+      }, 1000);
     });
     obs.observe(el, { childList: true, subtree: true, characterData: true });
     readObservers.set(el, obs);
-  }
-
-  // Read the latest response already in the DOM (called when TTS is toggled on)
-  function readLatestResponse() {
-    const els = document.querySelectorAll('model-response');
-    if (!els.length) return;
-    const last = els[els.length - 1];
-    const text = extractSpeakableText(last);
-    if (text && text !== lastReadText) {
-      lastReadText = text;
-      speak(text);
-    }
-  }
-
-  function updateSpeakBtn() {
-    const btn = document.getElementById(SPEAK_ID);
-    if (!btn) return;
-    btn.dataset.state = ttsEnabled ? 'on' : 'off';
-    btn.title = ttsEnabled
-      ? 'Speech Output ON — Ctrl+Shift+S to toggle'
-      : 'Speech Output OFF — Ctrl+Shift+S to toggle';
-  }
-
-  function toggleTts() {
-    ttsEnabled = !ttsEnabled;
-    localStorage.setItem('glive-tts', String(ttsEnabled));
-    updateSpeakBtn();
-    if (ttsEnabled) {
-      readLatestResponse();
-    } else {
-      stopSpeech();
-    }
   }
 
   // ── Unified UI state ─────────────────────────────────────────────────────
@@ -247,7 +211,8 @@
     finalText    = '';
     interimText  = '';
     isSubmitting = false;
-    stopSpeech(); // pause TTS while mic is active
+    lastReadText = '';
+    stopSpeech(); // clear any leftover TTS before mic starts
     showIndicator();
     startRecognition();
   }
@@ -257,6 +222,7 @@
     clearTimeout(silenceTimer);
     clearTimeout(visualTimer);
     stopRecognition();
+    stopSpeech();
     hideIndicator();
     const btn = document.getElementById(BUTTON_ID);
     if (btn) btn.dataset.state = 'off';
@@ -273,53 +239,29 @@
     const anchor       = micContainer || micComp;
     if (!anchor) return;
 
-    const parent = anchor.parentElement;
-
-    // LIVE button
-    const liveBtn = document.createElement('button');
-    liveBtn.id = BUTTON_ID;
-    liveBtn.dataset.state = 'off';
-    liveBtn.setAttribute('aria-label', 'Toggle Live Speech Input');
-    liveBtn.title = 'Live Speech Input — Ctrl+Shift+L';
-    const liveLabel = document.createElement('span');
-    liveLabel.className = 'glive-label';
-    liveLabel.textContent = 'LIVE';
-    liveBtn.appendChild(liveLabel);
-    liveBtn.addEventListener('click', toggleLive);
-    parent.insertBefore(liveBtn, anchor);
-
-    // SPEAK button
-    const speakBtn = document.createElement('button');
-    speakBtn.id = SPEAK_ID;
-    speakBtn.dataset.state = ttsEnabled ? 'on' : 'off';
-    speakBtn.setAttribute('aria-label', 'Toggle Speech Output');
-    speakBtn.title = ttsEnabled
-      ? 'Speech Output ON — Ctrl+Shift+S to toggle'
-      : 'Speech Output OFF — Ctrl+Shift+S to toggle';
-    const speakLabel = document.createElement('span');
-    speakLabel.className = 'glive-label';
-    speakLabel.textContent = 'SPEAK';
-    speakBtn.appendChild(speakLabel);
-    speakBtn.addEventListener('click', toggleTts);
-    parent.insertBefore(speakBtn, anchor);
+    const btn = document.createElement('button');
+    btn.id = BUTTON_ID;
+    btn.dataset.state = 'off';
+    btn.setAttribute('aria-label', 'Toggle Live Speech');
+    btn.title = 'Live Speech — Ctrl+Shift+L';
+    const label = document.createElement('span');
+    label.className = 'glive-label';
+    label.textContent = 'LIVE';
+    btn.appendChild(label);
+    btn.addEventListener('click', toggleLive);
+    anchor.parentElement.insertBefore(btn, anchor);
   }
 
   // ── Indicator ────────────────────────────────────────────────────────────
   function positionIndicator() {
     const bar = document.getElementById(INDICATOR_ID);
     if (!bar) return;
-    // input-container is always anchored to viewport bottom regardless of scroll/layout state
+    // input-container is always at viewport bottom regardless of scroll/layout state
     const anchor = document.querySelector('input-container') || document.querySelector('.input-area-container');
     if (anchor) {
       const rect = anchor.getBoundingClientRect();
       bar.style.bottom = (Math.round(window.innerHeight - rect.top) + 8) + 'px';
     }
-  }
-
-  function makeWaveBar() {
-    const d = document.createElement('div');
-    d.className = 'glive-wave-bar';
-    return d;
   }
 
   function showIndicator() {
@@ -332,7 +274,11 @@
     const wave = document.createElement('div');
     wave.className = 'glive-wave';
     wave.setAttribute('aria-hidden', 'true');
-    for (let i = 0; i < 5; i++) wave.appendChild(makeWaveBar());
+    for (let i = 0; i < 5; i++) {
+      const d = document.createElement('div');
+      d.className = 'glive-wave-bar';
+      wave.appendChild(d);
+    }
 
     const txt = document.createElement('span');
     txt.className = 'glive-indicator-text';
@@ -369,35 +315,29 @@
     setTimeout(() => t.remove(), 5000);
   }
 
-  // ── Keyboard shortcuts ───────────────────────────────────────────────────
+  // ── Keyboard shortcut ────────────────────────────────────────────────────
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
       e.preventDefault();
       toggleLive();
     }
-    if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
-      e.preventDefault();
-      toggleTts();
-    }
   });
 
   // ── MutationObserver ─────────────────────────────────────────────────────
   new MutationObserver((mutations) => {
-    // Re-inject buttons if Angular re-renders removed them
+    // Re-inject button if Angular re-renders removed it
     if (!document.getElementById(BUTTON_ID)) injectLiveButton();
 
-    // Reposition indicator when page layout changes (e.g. conversation starts,
-    // input-container moves from center to bottom)
+    // Reposition indicator when layout changes (e.g. first message sent,
+    // input-container moves from center to bottom of viewport)
     clearTimeout(posDebounce);
     posDebounce = setTimeout(positionIndicator, 150);
 
-    // Hook new AI response elements for TTS
+    // Watch new AI response elements for TTS
     for (const m of mutations) {
       for (const node of m.addedNodes) {
         if (node.nodeType !== 1) continue;
-        if (node.tagName?.toLowerCase() === 'model-response') {
-          watchResponseEl(node);
-        }
+        if (node.tagName?.toLowerCase() === 'model-response') watchResponseEl(node);
         node.querySelectorAll?.('model-response').forEach(watchResponseEl);
       }
     }
