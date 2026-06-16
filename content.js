@@ -252,7 +252,11 @@
     finalText    = '';
     interimText  = '';
     isSubmitting = false;
-    lastReadText = '';
+    // Snapshot the current last response so TTS only triggers on NEW responses
+    const existing = document.querySelectorAll('model-response');
+    if (existing.length) {
+      lastReadText = extractSpeakableText(existing[existing.length - 1]);
+    }
     stopSpeech();
     showIndicator();
     startRecognition();
