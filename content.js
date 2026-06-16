@@ -24,21 +24,25 @@
   let selectedVoiceName = localStorage.getItem('glive-voice') || '';
 
   function loadVoices() {
-    voices = window.speechSynthesis.getVoices();
+    const v = window.speechSynthesis.getVoices();
+    if (v.length) voices = v;
     populateVoiceSelect();
   }
   window.speechSynthesis.onvoiceschanged = loadVoices;
+  // Chrome loads voices async — try immediately and also after a short delay
   loadVoices();
+  setTimeout(loadVoices, 200);
 
   function getSelectedVoice() {
     if (!selectedVoiceName) return null;
     return voices.find(v => v.name === selectedVoiceName) || null;
   }
 
-  function populateVoiceSelect() {
-    const sel = document.getElementById('glive-voice-select');
+  // sel is optional — pass the element directly to avoid getElementById timing issues
+  function populateVoiceSelect(sel) {
+    if (!sel) sel = document.getElementById('glive-voice-select');
     if (!sel || !voices.length) return;
-    const prev = sel.value;
+    const prev = sel.value || selectedVoiceName;
     sel.innerHTML = '';
     const def = document.createElement('option');
     def.value = '';
@@ -50,7 +54,7 @@
       opt.textContent = v.name + (v.lang ? ' (' + v.lang + ')' : '');
       sel.appendChild(opt);
     });
-    sel.value = prev || selectedVoiceName;
+    sel.value = prev;
   }
 
   // ── DOM helpers ──────────────────────────────────────────────────────────
@@ -326,13 +330,10 @@
     voiceSel.className = 'glive-voice-select';
     voiceSel.title = 'Select TTS voice';
     voiceSel.setAttribute('aria-label', 'TTS voice');
-    populateVoiceSelect();                    // fill options (voices may already be loaded)
-    voiceSel.value = selectedVoiceName;
     voiceSel.addEventListener('change', (e) => {
       selectedVoiceName = e.target.value;
       localStorage.setItem('glive-voice', selectedVoiceName);
     });
-    // Prevent the click from bubbling up and toggling live mode
     voiceSel.addEventListener('click', (e) => e.stopPropagation());
 
     const cls = document.createElement('button');
@@ -347,6 +348,11 @@
     bar.appendChild(voiceSel);
     bar.appendChild(cls);
     document.body.appendChild(bar);
+
+    // Populate after element is in DOM; re-fetch voices in case they loaded late
+    const fresh = window.speechSynthesis.getVoices();
+    if (fresh.length) voices = fresh;
+    populateVoiceSelect(voiceSel);
 
     positionIndicator();
     window.addEventListener('resize', positionIndicator);
