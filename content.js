@@ -19,6 +19,44 @@
   let lastReadText    = '';
   const readObservers = new WeakMap();
 
+  // ── Language state ───────────────────────────────────────────────────────
+  const LANGUAGES = [
+    { code: 'en-US', label: 'English' },
+    { code: 'ta-IN', label: 'தமிழ் (Tamil)' },
+    { code: 'hi-IN', label: 'हिन्दी (Hindi)' },
+    { code: 'te-IN', label: 'తెలుగు (Telugu)' },
+    { code: 'kn-IN', label: 'ಕನ್ನಡ (Kannada)' },
+    { code: 'ml-IN', label: 'മലയാളം (Malayalam)' },
+    { code: 'fr-FR', label: 'Français' },
+    { code: 'de-DE', label: 'Deutsch' },
+    { code: 'es-ES', label: 'Español' },
+    { code: 'ja-JP', label: '日本語' },
+    { code: 'zh-CN', label: '中文' },
+    { code: 'ar-SA', label: 'العربية' },
+  ];
+
+  let selectedLang = localStorage.getItem('glive-lang') || 'en-US';
+
+  function getLang() { return selectedLang; }
+
+  function onLangChange(code) {
+    selectedLang = code;
+    localStorage.setItem('glive-lang', code);
+    selectedVoiceName = '';           // reset voice — old voice likely wrong language
+    localStorage.removeItem('glive-voice');
+    const voiceSel = document.getElementById('glive-voice-select');
+    if (voiceSel) {
+      voiceSel.value = '';
+      populateVoiceSelect(voiceSel); // re-filter voices for new language
+    }
+    // Rebuild and restart recognition with new language if live
+    if (isLive) {
+      stopRecognition();
+      recognition = null;
+      setTimeout(startRecognition, 150);
+    }
+  }
+
   // ── Voice state ──────────────────────────────────────────────────────────
   let voices            = [];
   let selectedVoiceName = localStorage.getItem('glive-voice') || '';
@@ -29,32 +67,49 @@
     populateVoiceSelect();
   }
   window.speechSynthesis.onvoiceschanged = loadVoices;
-  // Chrome loads voices async — try immediately and also after a short delay
   loadVoices();
   setTimeout(loadVoices, 200);
 
   function getSelectedVoice() {
-    if (!selectedVoiceName) return null;
-    return voices.find(v => v.name === selectedVoiceName) || null;
+    // If a voice is explicitly chosen, use it
+    if (selectedVoiceName) return voices.find(v => v.name === selectedVoiceName) || null;
+    // Otherwise auto-pick the best voice for the selected language
+    const lang = getLang();
+    const exact = voices.find(v => v.lang === lang);
+    if (exact) return exact;
+    const prefix = lang.split('-')[0];
+    return voices.find(v => v.lang.startsWith(prefix)) || null;
   }
 
-  // sel is optional — pass the element directly to avoid getElementById timing issues
   function populateVoiceSelect(sel) {
     if (!sel) sel = document.getElementById('glive-voice-select');
     if (!sel || !voices.length) return;
     const prev = sel.value || selectedVoiceName;
+    const lang = getLang();
+    const prefix = lang.split('-')[0];
+    // Show voices for the selected language first, then all others
+    const matching = voices.filter(v => v.lang.startsWith(prefix));
+    const rest     = voices.filter(v => !v.lang.startsWith(prefix));
     sel.innerHTML = '';
     const def = document.createElement('option');
     def.value = '';
-    def.textContent = 'Default voice';
+    def.textContent = 'Auto (best for language)';
     sel.appendChild(def);
-    voices.forEach(v => {
+    const addVoice = (v) => {
       const opt = document.createElement('option');
       opt.value = v.name;
-      opt.textContent = v.name + (v.lang ? ' (' + v.lang + ')' : '');
+      opt.textContent = v.name + ' (' + v.lang + ')';
       sel.appendChild(opt);
-    });
-    sel.value = prev;
+    };
+    matching.forEach(addVoice);
+    if (matching.length && rest.length) {
+      const sep = document.createElement('option');
+      sep.disabled = true;
+      sep.textContent = '──────────';
+      sel.appendChild(sep);
+    }
+    rest.forEach(addVoice);
+    sel.value = prev || '';
   }
 
   // ── DOM helpers ──────────────────────────────────────────────────────────
@@ -84,7 +139,7 @@
     r.continuous      = true;
     r.interimResults  = true;
     r.maxAlternatives = 1;
-    r.lang = document.documentElement.lang || navigator.language || 'en-US';
+    r.lang = getLang();
 
     r.onstart = () => {
       isRecognizing = true;
@@ -199,7 +254,7 @@
     if (!isLive || !text) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = document.documentElement.lang || navigator.language || 'en-US';
+    u.lang = getLang();
     const voice = getSelectedVoice();
     if (voice) u.voice = voice;
     window.speechSynthesis.speak(u);
@@ -328,6 +383,22 @@
     txt.setAttribute('aria-live', 'polite');
     txt.textContent = 'Listening…';
 
+    // Language selector
+    const langSel = document.createElement('select');
+    langSel.id = 'glive-lang-select';
+    langSel.className = 'glive-voice-select';
+    langSel.title = 'Select language';
+    langSel.setAttribute('aria-label', 'Language');
+    LANGUAGES.forEach(({ code, label }) => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = label;
+      langSel.appendChild(opt);
+    });
+    langSel.value = selectedLang;
+    langSel.addEventListener('change', (e) => onLangChange(e.target.value));
+    langSel.addEventListener('click', (e) => e.stopPropagation());
+
     // Voice selector — inline in the pill
     const voiceSel = document.createElement('select');
     voiceSel.id = 'glive-voice-select';
@@ -349,6 +420,7 @@
 
     bar.appendChild(wave);
     bar.appendChild(txt);
+    bar.appendChild(langSel);
     bar.appendChild(voiceSel);
     bar.appendChild(cls);
     document.body.appendChild(bar);
